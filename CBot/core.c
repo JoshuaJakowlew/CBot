@@ -11,12 +11,9 @@
 #include "core.h"
 #include "private.h"
 
-typedef struct
-{
-	char* data;
-	size_t size;
-} Buffer, * pBuffer;
+#define LOCAL static
 
+/* Longpoll connection */
 typedef struct
 {
 	const char* key;
@@ -24,13 +21,8 @@ typedef struct
 	const char* ts;
 } LongpollServer, * pLongpollServer;
 
-/* Https request helper */
-static size_t write(void* contents, size_t size, size_t nmemb, void* userp);
-static Buffer send_request(const char* url);
-
-/* Longpoll connection */
-static int get_longpoll(pLongpollServer longpoll);
-static int start_longpoll(const pLongpollServer longpoll);
+LOCAL int start_longpoll(const pLongpollServer longpoll);
+LOCAL int get_longpoll(pLongpollServer longpoll);
 
 /* Parsing functions */
 typedef struct
@@ -48,67 +40,106 @@ typedef struct
 
 typedef struct
 {
+	long long peer_id;
 	const char* commmand;
 	const char* args[16];
 	int argscnt;
-	long long peer_id;
 } PluginArgs, * pPluginArgs;
 
-static void parse_longpoll(pBuffer response, pMessageEvent event);
-static Message parse_message(const nx_json* msg);
-static void parse_command(const pMessage msg, pPluginArgs args);
+LOCAL int parse_command(const pMessage msg, pPluginArgs args);
+LOCAL Message parse_message(const nx_json* msg);
+LOCAL int parse_longpoll(pBuffer response, pMessageEvent event);
 
 /* Plugin loaders */
 typedef int(*PluginHandler)(pPluginArgs);
 
-static PluginHandler select_plugin(const pPluginArgs args);
+LOCAL PluginHandler select_plugin(const pPluginArgs args);
+
+/* Https request helpers */
+LOCAL size_t write(void* contents, size_t size, size_t nmemb, void* userp);
 
 /* Utility functions */
-static const char* strclone(const char* str);
+LOCAL const char* strclone(const char* str);
 
-
+/* Bot core starter */
 int bot_start()
 {
+	int error = 0;
 	if (CURLE_OK != curl_global_init(CURL_GLOBAL_ALL))
 	{
-		puts("[!] Error: cannot initialise cURL");
-		return 1;
+		LOG("[!] Error: cannot initialise cURL\n");
+		error = 1;
+		goto end;
 	}
 
 	LongpollServer longpoll;
 	if (get_longpoll(&longpoll))
-		puts("[!] Error: cannot get longpoll server");
-	start_longpoll(&longpoll);
+	{
+		LOG("[!] Error: cannot get longpoll server\n");
+		error = 2;
+		goto end;
+	}
 
+	if (start_longpoll(&longpoll))
+	{
+		LOG("[!] Error: lonpoll loop failed\n");
+		error = 3;
+	}
+		
+end:
+	free(longpoll.key);
+	free(longpoll.server);
+	free(longpoll.ts);
 	curl_global_cleanup();
+	return error;
 }
 
-static int start_longpoll(const pLongpollServer longpoll)
+/* Longpoll functions */
+LOCAL int start_longpoll(const pLongpollServer longpoll)
 {
+	int error = 0;
 	char request[512];
 	while (1)
 	{
 		// Send request
 		sprintf(request, "%s?act=a_check&key=%s&ts=%s&wait=25", longpoll->server, longpoll->key, longpoll->ts);
 		Buffer response = send_request(request);
-		LOG("-----\nLongpoll result: %s\n", response.data);
+		if (0 == response.size)
+		{
+			LOG("[!] Error: send_request(%s) failed", request);
+			error = 1;
+			goto end;
+		}
+
+		LOG("[i] Longpoll result: %s\n", response.data);
 
 		// Parse JSON
 		MessageEvent event;
-		parse_longpoll(&response, &event);
+		if (parse_longpoll(&response, &event))
+		{
+			LOG("[!] Error: parse_lonpoll failed");
+			error = 2;
+			goto end;
+		}
 
 		for (int i = 0; i < event.count; ++i)
-			LOG("-----\nMessage %d\npeer_id:%d\ntext:%s\n",
+			LOG("[i] Message %d\npeer_id:%d\ntext:%s\n",
 				i, (int)event.messages[i].peer_id, event.messages[i].text);
 
 		// Parse command
 		for (int i = 0; i < event.count; ++i)
 		{
 			PluginArgs args;
-			parse_command(&event.messages[i], &args);
-			LOG("-----\nCommand %d: %s\n", i, args.commmand);
+			if (parse_command(&event.messages[i], &args))
+			{
+				LOG("[!] Error: parse_command failed");
+				error = 3;
+				goto end;
+			}
+
+			LOG("[i] Command %d: %s\n", i, args.commmand);
 			for (int i = 0; i < args.argscnt; ++i)
-				LOG("args[%d]: (%s)\n", i, args.args[i]);
+				LOG("[i] args[%d]: (%s)\n", i, args.args[i]);
 		}
 
 		free(longpoll->ts);
@@ -117,10 +148,53 @@ static int start_longpoll(const pLongpollServer longpoll)
 		free(event.messages);
 		free(response.data);
 	}
+
+end:
+	return error;
 }
 
-static void parse_command(const pMessage msg, pPluginArgs args)
+LOCAL int get_longpoll(pLongpollServer longpoll)
 {
+	int error = 0;
+	Buffer response = send_request(BUILD_REQUEST("groups.getLongPollServer", "group_id=" GROUP_ID));
+	if (0 == response.size)
+	{
+		error = 1;
+		goto end;
+	}
+
+	const nx_json* json = nx_json_parse_utf8(response.data);
+	const nx_json* root = nx_json_get(json, "response");
+
+	const char* key = nx_json_get(root, "key")->text_value;
+	const char* server = nx_json_get(root, "server")->text_value;
+	const char* ts = nx_json_get(root, "ts")->text_value;
+
+	printf("key: %s\nserver: %s\nts: %s\n", key, server, ts);
+
+	longpoll->key = strclone(key);
+	longpoll->server = strclone(server);
+	longpoll->ts = strclone(ts);
+
+	if (NULL == longpoll->key ||
+		NULL == longpoll->server ||
+		NULL == longpoll->ts)
+	{
+		error = 2;
+		goto end;
+	}
+
+end:
+	nx_json_free(json);
+	free(response.data);
+	return error;
+}
+/* End of longpoll functions */
+
+/* Parsing functions */
+LOCAL int parse_command(const pMessage msg, pPluginArgs args)
+{
+	// Still trash and spagetti
 	args->commmand = NULL;
 	args->argscnt = 0;
 	const char* text = msg->text;
@@ -146,8 +220,18 @@ static void parse_command(const pMessage msg, pPluginArgs args)
 	}
 }
 
-static void parse_longpoll(pBuffer response, pMessageEvent event)
+LOCAL Message parse_message(const nx_json* msg)
 {
+	Message message;
+	message.peer_id = nx_json_get(msg, "peer_id")->int_value;
+	message.text = nx_json_get(msg, "text")->text_value;
+	return message;
+}
+
+LOCAL int parse_longpoll(pBuffer response, pMessageEvent event)
+{
+	int error = 0;
+
 	const nx_json* json = nx_json_parse_utf8(response->data);
 
 	event->ts = nx_json_get(json, "ts")->text_value;
@@ -155,7 +239,10 @@ static void parse_longpoll(pBuffer response, pMessageEvent event)
 	const nx_json* updates = nx_json_get(json, "updates");
 	event->messages = (pMessage)malloc(sizeof(Message) * updates->length);
 	if (NULL == event->messages)
+	{
+		error = 1;
 		goto end;
+	}
 	event->count = updates->length;
 
 	for (int i = 0; i < event->count; ++i)
@@ -167,50 +254,17 @@ static void parse_longpoll(pBuffer response, pMessageEvent event)
 end:
 	nx_json_free(json);
 }
+/* End of parsing functions */
 
-static Message parse_message(const nx_json* msg)
-{
-	Message message;
-	message.peer_id = nx_json_get(msg, "peer_id")->int_value;
-	message.text = nx_json_get(msg, "text")->text_value;
-	return message;
-}
-
-static int get_longpoll(pLongpollServer longpoll)
-{
-	int error = 0;
-	Buffer response = send_request(BUILD_REQUEST("groups.getLongPollServer", "group_id=" GROUP_ID));
-	if (0 == response.size)
-	{
-		error = 1;
-		goto end;
-	}
-
-	const nx_json* json = nx_json_parse_utf8(response.data);
-	const nx_json* root = nx_json_get(json, "response");
-	
-	const char* key = nx_json_get(root, "key")->text_value;
-	const char* server = nx_json_get(root, "server")->text_value;
-	const char* ts = nx_json_get(root, "ts")->text_value;
-
-	printf("key: %s\nserver: %s\nts: %s\n", key, server, ts);
-
-	longpoll->key = strclone(key);
-	longpoll->server = strclone(server);
-	longpoll->ts = strclone(ts);
-
-	nx_json_free(json);
-end:
-	free(response.data);
-	return error;
-}
-
-static PluginHandler select_plugin(const pPluginArgs args )
+/* Plugin loaders */
+LOCAL PluginHandler select_plugin(const pPluginArgs args )
 {
 	return NULL;
 }
+/* End of plugin loaders */
 
-static Buffer send_request(const char* url)
+/* Https request helpers */
+Buffer send_request(const char* url)
 {
 	CURL* curl;
 	CURLcode res;
@@ -236,21 +290,19 @@ static Buffer send_request(const char* url)
 	if (res != CURLE_OK)
 	{
 		const char* strerror = curl_easy_strerror(res);
-		fprintf(stderr, "curl_easy_perform() failed: %s\n", strerror);
+		LOG("[!] Error: curl_easy_perform() failed: %s\n", strerror);
 
 		free(buf.data);
 		buf.size = 0;
-		goto cleanup;
+		goto end;
 	}
 
-	printf("%lu bytes retrieved\n", (long)buf.size);
-
-cleanup:
+end:
 	curl_easy_cleanup(curl);
 	return buf;
 }
 
-static size_t write(void* contents, size_t size, size_t nmemb, void* userp)
+LOCAL size_t write(void* contents, size_t size, size_t nmemb, void* userp)
 {
 	size_t realsize = size * nmemb;
 	pBuffer buf = (pBuffer)userp;
@@ -268,8 +320,10 @@ static size_t write(void* contents, size_t size, size_t nmemb, void* userp)
 
 	return realsize;
 }
+/* End of https request helpers */
 
-static const char* strclone(const char* str)
+/* Utility functions */
+LOCAL const char* strclone(const char* str)
 {
 	size_t strsize = strlen(str) + 1;
 	char* copy = (char*)malloc(strsize);
@@ -278,3 +332,4 @@ static const char* strclone(const char* str)
 	memcpy(copy, str, strsize);
 	return copy;
 }
+/* End of utility functions */
