@@ -9,6 +9,7 @@
 #include <nxjson.h>
 
 #include "core.h"
+#include "private.h"
 
 typedef struct
 {
@@ -23,12 +24,6 @@ typedef struct
 	const char* ts;
 } LongpollServer, * pLongpollServer;
 
-typedef struct
-{
-	int peer_id;
-	const char* text;
-} Event, pEvent;
-
 /* Https request helper */
 static size_t write(void* contents, size_t size, size_t nmemb, void* userp);
 static Buffer send_request(const char* url);
@@ -40,15 +35,15 @@ static int start_longpoll(const pLongpollServer longpoll);
 /* Parsing functions */
 typedef struct
 {
-	long long peer_id;
 	const char* text;
+	long long peer_id;
 } Message, * pMessage;
 
 typedef struct
 {
-	const char* ts;
-	int length;
 	pMessage messages;
+	const char* ts;
+	int count;
 } MessageEvent, * pMessageEvent;
 
 typedef struct
@@ -59,10 +54,16 @@ typedef struct
 	long long peer_id;
 } PluginArgs, * pPluginArgs;
 
-static void parse_longpoll(Buffer response, pMessageEvent event);
+static void parse_longpoll(pBuffer response, pMessageEvent event);
 static Message parse_message(const nx_json* msg);
-static void parse_command(const pMessageEvent event);
+static void parse_command(const pMessage msg, pPluginArgs args);
 
+/* Plugin loaders */
+typedef int(*PluginHandler)(pPluginArgs);
+
+static PluginHandler select_plugin(const pPluginArgs args);
+
+/* Utility functions */
 static const char* strclone(const char* str);
 
 
@@ -87,79 +88,91 @@ static int start_longpoll(const pLongpollServer longpoll)
 	char request[512];
 	while (1)
 	{
+		// Send request
 		sprintf(request, "%s?act=a_check&key=%s&ts=%s&wait=25", longpoll->server, longpoll->key, longpoll->ts);
 		Buffer response = send_request(request);
-		printf("Longpoll result: %s", response.data);
+		LOG("-----\nLongpoll result: %s\n", response.data);
 
+		// Parse JSON
 		MessageEvent event;
-		parse_longpoll(response, &event);
+		parse_longpoll(&response, &event);
+
+		for (int i = 0; i < event.count; ++i)
+			LOG("-----\nMessage %d\npeer_id:%d\ntext:%s\n",
+				i, (int)event.messages[i].peer_id, event.messages[i].text);
+
+		// Parse command
+		for (int i = 0; i < event.count; ++i)
+		{
+			PluginArgs args;
+			parse_command(&event.messages[i], &args);
+			LOG("-----\nCommand %d: %s\n", i, args.commmand);
+			for (int i = 0; i < args.argscnt; ++i)
+				LOG("args[%d]: (%s)\n", i, args.args[i]);
+		}
 
 		free(longpoll->ts);
-		longpoll->ts = event.ts;
+		longpoll->ts = strclone(event.ts);
 
-		for (int i = 0; i < event.length; ++i)
-		{
-			printf("-----\nMessage %d\npeer_id:%d\ntext:%s\n", i, (int)event.messages[i].peer_id, event.messages[i].text);
-		}
-
-		parse_command(&event);
+		free(event.messages);
+		free(response.data);
 	}
 }
 
-static void parse_command(const pMessageEvent event)
+static void parse_command(const pMessage msg, pPluginArgs args)
 {
-	for (int i = 0; i < event->length; ++i)
+	args->commmand = NULL;
+	args->argscnt = 0;
+	const char* text = msg->text;
+	char* pos = strstr(text, "[club" GROUP_ID " | @purecbot]");
+	if (NULL != pos)
+		text += sizeof("[club" GROUP_ID " | @purecbot]") - 1;
+
+	if (text[0] != '/')
+		return;
+	++text;
+
+	char* token = strtok(text, " ");
+	if (NULL == token)
+		return;
+
+	args->commmand = token;
+	for (args->argscnt = 0; args->argscnt < 16; ++args->argscnt)
 	{
-		char* command = NULL;
-		char* args[16];
-		int argscnt;
-		const char* text = event->messages[i].text;
-		char* pos = strstr(text, "[club183208139 | @purecbot]");
-		if (NULL == pos) // Backslash command
-		{
-			if (text[0] != '/') continue;
-			++text;
-		}
-		else text += 27;
-
-		char* token = strtok(text, " ");
-		if (NULL == token) continue;
-
-		command = token;
-		for (argscnt = 0; argscnt < 16; ++argscnt)
-		{
-			token = strtok(NULL, " ");
-			if (NULL == token) break;
-			args[argscnt] = token;
-		}
+		token = strtok(NULL, "  ");
+		if (NULL == token)
+			break;
+		args->args[args->argscnt] = token;
 	}
 }
 
-static void parse_longpoll(Buffer response, pMessageEvent event)
+static void parse_longpoll(pBuffer response, pMessageEvent event)
 {
-	const nx_json* json = nx_json_parse_utf8(response.data);
+	const nx_json* json = nx_json_parse_utf8(response->data);
 
-	event->ts = strclone(nx_json_get(json, "ts")->text_value);
+	event->ts = nx_json_get(json, "ts")->text_value;
 
 	const nx_json* updates = nx_json_get(json, "updates");
 	event->messages = (pMessage)malloc(sizeof(Message) * updates->length);
-	event->length = updates->length;
+	if (NULL == event->messages)
+		goto end;
+	event->count = updates->length;
 
-	for (int i = 0; i < updates->length; ++i)
+	for (int i = 0; i < event->count; ++i)
 	{
 		const nx_json* msg = nx_json_get(nx_json_item(updates, i), "object");
 		event->messages[i] = parse_message(msg);
 	}
 
+end:
 	nx_json_free(json);
-	free(response.data);
 }
 
 static Message parse_message(const nx_json* msg)
 {
 	Message message;
 	message.peer_id = nx_json_get(msg, "peer_id")->int_value;
-	message.text = strclone(nx_json_get(msg, "text")->text_value);
+	message.text = nx_json_get(msg, "text")->text_value;
 	return message;
 }
 
@@ -190,6 +203,11 @@ static int get_longpoll(pLongpollServer longpoll)
 end:
 	free(response.data);
 	return error;
+}
+
+static PluginHandler select_plugin(const pPluginArgs args )
+{
+	return NULL;
 }
 
 static Buffer send_request(const char* url)

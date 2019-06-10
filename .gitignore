@@ -3,6 +3,9 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
+# Private data (access token, group id and so on)
+CBot/private.h
+
 # User-specific files
 *.rsuser
 *.suo
