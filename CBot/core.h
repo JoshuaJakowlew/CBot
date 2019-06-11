@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include "private.h"
+
 #define VKAPI_VERSION "5.95"
 
 #define BUILD_REQUEST(method, params) "https://api.vk.com/method/" \

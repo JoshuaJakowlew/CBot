@@ -9,7 +9,7 @@
 #include <nxjson.h>
 
 #include "core.h"
-#include "private.h"
+#include "plugins.h"
 
 #define LOCAL static
 
@@ -38,20 +38,12 @@ typedef struct
 	int count;
 } MessageEvent, * pMessageEvent;
 
-typedef struct
-{
-	long long peer_id;
-	const char* commmand;
-	const char* args[16];
-	int argscnt;
-} PluginArgs, * pPluginArgs;
-
 LOCAL int parse_command(const pMessage msg, pPluginArgs args);
 LOCAL Message parse_message(const nx_json* msg);
 LOCAL int parse_longpoll(pBuffer response, pMessageEvent event);
 
 /* Plugin loaders */
-typedef int(*PluginHandler)(pPluginArgs);
+typedef int(*PluginHandler)(const pPluginArgs);
 
 LOCAL PluginHandler select_plugin(const pPluginArgs args);
 
@@ -106,7 +98,7 @@ LOCAL int start_longpoll(const pLongpollServer longpoll)
 		Buffer response = send_request(request);
 		if (0 == response.size)
 		{
-			LOG("[!] Error: send_request(%s) failed", request);
+			LOG("[!] Error: send_request(%s) failed\n", request);
 			error = 1;
 			goto end;
 		}
@@ -117,7 +109,7 @@ LOCAL int start_longpoll(const pLongpollServer longpoll)
 		MessageEvent event;
 		if (parse_longpoll(&response, &event))
 		{
-			LOG("[!] Error: parse_lonpoll failed");
+			LOG("[!] Error: parse_lonpoll failed\n");
 			error = 2;
 			goto end;
 		}
@@ -132,7 +124,7 @@ LOCAL int start_longpoll(const pLongpollServer longpoll)
 			PluginArgs args;
 			if (parse_command(&event.messages[i], &args))
 			{
-				LOG("[!] Error: parse_command failed");
+				LOG("[!] Error: parse_command failed\n");
 				error = 3;
 				goto end;
 			}
@@ -140,6 +132,9 @@ LOCAL int start_longpoll(const pLongpollServer longpoll)
 			LOG("[i] Command %d: %s\n", i, args.commmand);
 			for (int i = 0; i < args.argscnt; ++i)
 				LOG("[i] args[%d]: (%s)\n", i, args.args[i]);
+
+			PluginHandler plugin = select_plugin(&args);
+			if(plugin) plugin(&args);
 		}
 
 		free(longpoll->ts);
@@ -185,7 +180,7 @@ LOCAL int get_longpoll(pLongpollServer longpoll)
 	}
 
 end:
-	nx_json_free(json);
+	//nx_json_free(json);
 	free(response.data);
 	return error;
 }
@@ -197,18 +192,21 @@ LOCAL int parse_command(const pMessage msg, pPluginArgs args)
 	// Still trash and spagetti
 	args->commmand = NULL;
 	args->argscnt = 0;
+	args->peer_id = msg->peer_id;
 	const char* text = msg->text;
 	char* pos = strstr(text, "[club" GROUP_ID " | @purecbot]");
 	if (NULL != pos)
 		text += sizeof("[club" GROUP_ID " | @purecbot]") - 1;
 
 	if (text[0] != '/')
-		return;
+		return 0;
 	++text;
+	
+	args->text = "ECHO PLUGIN RESPONSE";
 
 	char* token = strtok(text, " ");
 	if (NULL == token)
-		return;
+		return 0;
 
 	args->commmand = token;
 	for (args->argscnt = 0; args->argscnt < 16; ++args->argscnt)
@@ -218,6 +216,7 @@ LOCAL int parse_command(const pMessage msg, pPluginArgs args)
 			break;
 		args->args[args->argscnt] = token;
 	}
+	return 0;
 }
 
 LOCAL Message parse_message(const nx_json* msg)
@@ -253,12 +252,15 @@ LOCAL int parse_longpoll(pBuffer response, pMessageEvent event)
 
 end:
 	nx_json_free(json);
+	return error;
 }
 /* End of parsing functions */
 
 /* Plugin loaders */
 LOCAL PluginHandler select_plugin(const pPluginArgs args )
 {
+	if (!strcmp("echo", args->commmand))
+		return &plugin_echo;
 	return NULL;
 }
 /* End of plugin loaders */
