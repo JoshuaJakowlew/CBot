@@ -68,6 +68,15 @@ int bot_start()
 		goto end;
 	}
 
+	curl = curl_easy_init();
+
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write);
+	/* some servers don't like requests that are made without a user-agent
+	field, so we provide one */
+	curl_easy_setopt(curl, CURLOPT_USERAGENT, "libcurl-agent/1.0");
+	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+
 	LongpollServer longpoll;
 	if (get_longpoll(&longpoll))
 	{
@@ -86,6 +95,7 @@ end:
 	free(longpoll.key);
 	free(longpoll.server);
 	free(longpoll.ts);
+	curl_easy_cleanup(curl);
 	curl_global_cleanup();
 	return error;
 }
@@ -203,9 +213,10 @@ LOCAL int parse_command(const pMessage msg, pPluginArgs args)
 	args->argscnt = 0;
 	args->peer_id = msg->peer_id;
 	const char* text = msg->text;
-	char* pos = strstr(text, "[club" GROUP_ID " | @purecbot]");
+	char* pos = strstr(text, "@purecbot] ");
 	if (NULL != pos)
-		text += sizeof("[club" GROUP_ID " | @purecbot]") - 1;
+		//text += sizeof("[club" GROUP_ID " | @purecbot]") - 1;
+		text = pos + sizeof("@purecbot] ") - 1;
 
 	if (text[0] != '/')
 	{
@@ -296,20 +307,20 @@ Buffer send_request(const char* url)
 	buf.data = NULL;
 	buf.size = 0;
 
-	curl = curl_easy_init();
+	//curl = curl_easy_init();
 
 	curl_easy_setopt(curl, CURLOPT_URL, url);
 
-	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write);
+	//curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write);
 	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)& buf);
 
 	/* some servers don't like requests that are made without a user-agent
 	field, so we provide one */
-	curl_easy_setopt(curl, CURLOPT_USERAGENT, "libcurl-agent/1.0");
+	/*curl_easy_setopt(curl, CURLOPT_USERAGENT, "libcurl-agent/1.0");
 	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);*/
 
-	curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
+	//curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
 
 	res = curl_easy_perform(curl);
 
