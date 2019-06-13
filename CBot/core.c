@@ -48,6 +48,7 @@ typedef int(*PluginHandler)(const pPluginArgs);
 LOCAL PluginHandler select_plugin(const pPluginArgs args);
 
 /* Https request helpers */
+CURL* curl;
 LOCAL size_t write(void* contents, size_t size, size_t nmemb, void* userp);
 
 /* Utility functions */
@@ -57,6 +58,9 @@ LOCAL const char* strclone(const char* str);
 int bot_start()
 {
 	int error = 0;
+
+	srand(time(NULL));
+
 	if (CURLE_OK != curl_global_init(CURL_GLOBAL_ALL))
 	{
 		LOG("[!] Error: cannot initialise cURL\n");
@@ -124,9 +128,10 @@ LOCAL int start_longpoll(const pLongpollServer longpoll)
 			PluginArgs args;
 			if (parse_command(&event.messages[i], &args))
 			{
-				LOG("[!] Error: parse_command failed\n");
+				/*LOG("[!] Error: parse_command failed\n");
 				error = 3;
-				goto end;
+				goto end;*/
+				continue;
 			}
 
 			LOG("[i] Command %d: %s\n", i, args.commmand);
@@ -135,6 +140,8 @@ LOCAL int start_longpoll(const pLongpollServer longpoll)
 
 			PluginHandler plugin = select_plugin(&args);
 			if(plugin) plugin(&args);
+
+			free(args.text);
 		}
 
 		free(longpoll->ts);
@@ -189,6 +196,8 @@ end:
 /* Parsing functions */
 LOCAL int parse_command(const pMessage msg, pPluginArgs args)
 {
+	int error = 0;
+
 	// Still trash and spagetti
 	args->commmand = NULL;
 	args->argscnt = 0;
@@ -199,14 +208,24 @@ LOCAL int parse_command(const pMessage msg, pPluginArgs args)
 		text += sizeof("[club" GROUP_ID " | @purecbot]") - 1;
 
 	if (text[0] != '/')
-		return 0;
+	{
+		error = 1;
+		goto end;
+	}
 	++text;
 	
-	args->text = "ECHO PLUGIN RESPONSE";
+	char* msgstart = strchr(text, ' ');
+	if (NULL == msgstart)
+		args->text = NULL;
+	else
+		args->text = strclone(text + (msgstart - text + 1));
 
 	char* token = strtok(text, " ");
 	if (NULL == token)
-		return 0;
+	{
+		error = 2;
+		goto end;
+	}
 
 	args->commmand = token;
 	for (args->argscnt = 0; args->argscnt < 16; ++args->argscnt)
@@ -216,7 +235,9 @@ LOCAL int parse_command(const pMessage msg, pPluginArgs args)
 			break;
 		args->args[args->argscnt] = token;
 	}
-	return 0;
+
+end:
+	return error;
 }
 
 LOCAL Message parse_message(const nx_json* msg)
@@ -268,7 +289,7 @@ LOCAL PluginHandler select_plugin(const pPluginArgs args )
 /* Https request helpers */
 Buffer send_request(const char* url)
 {
-	CURL* curl;
+	//CURL* curl;
 	CURLcode res;
 
 	Buffer buf;
@@ -286,6 +307,9 @@ Buffer send_request(const char* url)
 	field, so we provide one */
 	curl_easy_setopt(curl, CURLOPT_USERAGENT, "libcurl-agent/1.0");
 	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+
+	curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
 
 	res = curl_easy_perform(curl);
 
@@ -300,7 +324,7 @@ Buffer send_request(const char* url)
 	}
 
 end:
-	curl_easy_cleanup(curl);
+	//curl_easy_cleanup(curl);
 	return buf;
 }
 

@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include <curl/curl.h>
+
 #include "private.h"
 
 #define VKAPI_VERSION "5.95"
@@ -20,6 +22,7 @@ typedef struct
 	size_t size;
 } Buffer, * pBuffer;
 
+extern CURL* curl;
 Buffer send_request(const char* url);
 
 /* Bot core starter */
