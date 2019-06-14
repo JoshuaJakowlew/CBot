@@ -1,25 +1,27 @@
-#define _CRT_SECURE_NO_WARNINGS
-
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <curl/curl.h>
-
 #include "echo.h"
+#include "defines.h"
+#include "private.h"
+#include "plugins.h"
+#include "requests.h"
 
-int plugin_echo(const pPluginArgs args)
+int plugin_echo(const PluginArgs* args)
 {
-	printf("[i] Plugin: echo has been invoked\n");
+	int error = PE_OK;
 
-	if (NULL == args->text)
-		return 0;
-
-	const char* message = curl_easy_escape(curl, args->text, 0);
+	const char* message = escape_url(args->text, 0);
+	if (NULL == message)
+		return PE_MEM;
 
 	char request[2048];
-	int length = sprintf(request, BUILD_REQUEST("messages.send", "peer_id=%d&message=%s&random_id=%d"), (int)args->peer_id, message, rand());
-	Buffer response = send_request(request, length);
+	sprintf(request, BUILD_REQUEST("messages.send", "peer_id=%d&message=%s&random_id=%d"), (int)args->peer_id, message, rand());
+	Response response = requests_send(request);
+	if (0 == response.size)
+		return PE_NET;
 
-	curl_free(message);
-	return 0;
+	free(response.data);
+	free_escaped_url(message);
+	return error;
 }

@@ -1,31 +1,12 @@
 #ifndef CORE_H
 #define CORE_H
 
-#include <stdint.h>
-
-#include <curl/curl.h>
-
-#include "private.h"
-
-#define VKAPI_VERSION "5.95"
-
-#define BUILD_REQUEST(method, params) "https://api.vk.com/method/" \
-									  method "?" params "&access_token="\
-									  ACCESS_TOKEN "&v=" VKAPI_VERSION
-
-#define LOG(text, ...) printf(text, __VA_ARGS__)
-
-/* Https request helpers */
-typedef struct
+enum CoreError
 {
-	char* data;
-	size_t size;
-} Buffer, * pBuffer;
+	COREE_OK = 0,
+	COREE_INIT_FAILED = 1
+};
 
-extern CURL* curl;
-Buffer send_request(const char* url);
-
-/* Bot core starter */
 int bot_start();
 
 #endif

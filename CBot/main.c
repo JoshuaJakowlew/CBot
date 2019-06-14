@@ -1,7 +1,10 @@
-#include "core.h"
+#include <stdio.h>
 
+#include "defines.h"
+#include "core.h"
 
 int main()
 {
-	bot_start();
+	if( bot_start())
+		LOG(LOG_ERROR, "Unknown error");
 }

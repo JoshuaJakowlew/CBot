@@ -19,6 +19,12 @@
     <Filter Include="Source Files\Plugins">
       <UniqueIdentifier>{ee885d47-4d7d-495f-8025-f04adba2ed94}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\Core">
+      <UniqueIdentifier>{935d0292-3648-40b2-b17a-f61542155186}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Core">
+      <UniqueIdentifier>{ca4cefb2-aaf8-4eda-8085-bd79c1fb8a1f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.c">
@@ -30,6 +36,15 @@
     <ClCompile Include="echo.c">
       <Filter>Source Files\Plugins</Filter>
     </ClCompile>
+    <ClCompile Include="longpoll.c">
+      <Filter>Source Files\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="requests.c">
+      <Filter>Source Files\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="plugin_selector.c">
+      <Filter>Source Files\Core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="core.h">
@@ -38,14 +53,23 @@
     <ClInclude Include="private.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="data_structures.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="plugins.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="echo.h">
       <Filter>Header Files\Plugins</Filter>
+    </ClInclude>
+    <ClInclude Include="longpoll.h">
+      <Filter>Header Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="requests.h">
+      <Filter>Header Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="defines.h">
+      <Filter>Header Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="plugin_selector.h">
+      <Filter>Header Files\Core</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
