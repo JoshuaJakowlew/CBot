@@ -79,5 +79,8 @@ LOCAL PluginHandler select_plugin(const PluginArgs* args)
 {
 	if (!strcmp("echo", args->command))
 		return plugin_echo;
-	else return NULL;
+	if (!strcmp("spam", args->command))
+		return plugin_spam;
+
+	return NULL;
 }

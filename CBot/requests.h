@@ -26,7 +26,7 @@ int requests_init();
 void requests_free();
 Response requests_send(const char* url);
 
-const char* escape_url(const char* text, int length);
+char* escape_url(const char* text, int length);
 void free_escaped_url(const char* url);
 
 #endif

@@ -2,6 +2,7 @@
 #define PLUGINS_H
 
 #include "echo.h"
+#include "spam.h"
 
 enum PluginError
 {

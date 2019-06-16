@@ -62,7 +62,7 @@ end:
 	return buf;
 }
 
-const char* escape_url(const char* text, int length)
+char* escape_url(const char* text, int length)
 {
 	return curl_easy_escape(curl, text, length);
 }

@@ -45,6 +45,9 @@
     <ClCompile Include="plugin_selector.c">
       <Filter>Source Files\Core</Filter>
     </ClCompile>
+    <ClCompile Include="spam.c">
+      <Filter>Source Files\Plugins</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="core.h">
@@ -70,6 +73,9 @@
     </ClInclude>
     <ClInclude Include="plugin_selector.h">
       <Filter>Header Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="spam.h">
+      <Filter>Header Files\Plugins</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

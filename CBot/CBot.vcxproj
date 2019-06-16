@@ -138,6 +138,7 @@
     <ClCompile Include="main.c" />
     <ClCompile Include="plugin_selector.c" />
     <ClCompile Include="requests.c" />
+    <ClCompile Include="spam.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="core.h" />
@@ -148,6 +149,7 @@
     <ClInclude Include="plugin_selector.h" />
     <ClInclude Include="private.h" />
     <ClInclude Include="requests.h" />
+    <ClInclude Include="spam.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
