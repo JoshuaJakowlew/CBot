@@ -3,15 +3,6 @@
 
 #include "longpoll.h"
 
-enum PluginSelectorError
-{
-	PSE_OK = 0,
-	PSE_INPUT = 1,
-	PSE_MEM = 2,
-	PSE_NO_PLUGIN = 3,
-	PSE_PLUGIN_FAILED = 4
-};
-
 typedef struct _PluginArgs
 {
 	long long peer_id;

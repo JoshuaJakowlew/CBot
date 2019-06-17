@@ -34,7 +34,7 @@ const char* floodtext =
 
 int plugin_spam(const PluginArgs* args)
 {
-	int error = PE_OK;
+	int error = CBOTE_OK;
 
 	// Size in packs (25msg each)
 	int sent_count = 0;
@@ -57,13 +57,13 @@ int plugin_spam(const PluginArgs* args)
 		);
 		const char* code = escape_url(code_buf, 0);
 		if (NULL == code)
-			return PE_MEM;
+			return CBOTE_NOMEM;
 
 		char request[1024];
 		sprintf(request, BUILD_REQUEST("execute", "code=%s"), code);
 		Response response = requests_send(request);
 		if (0 == response.size)
-			return PE_NET;
+			return CBOTE_NET;
 
 		printf("Attempt %d\n", ++attempts);
 		if (NULL == strstr(response.data, "error"))

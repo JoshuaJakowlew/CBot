@@ -5,6 +5,7 @@
 #include "plugins.h"
 #include "plugin_selector.h"
 #include "defines.h"
+#include "utility.h"
 
 LOCAL void plugin_free_args(PluginArgs* args);
 LOCAL int parse_command(const char* text, PluginArgs* args);
@@ -12,26 +13,26 @@ LOCAL PluginHandler select_plugin(const PluginArgs* args);
 
 int plugin_execute(const Message* message)
 {
-	int error = PSE_OK;
+	int error = CBOTE_OK;
 
 	PluginArgs args;
 	args.peer_id = message->peer_id;
-	if (PSE_OK != parse_command(message->text, &args))
-		return PSE_INPUT;
+	if (CBOTE_OK != parse_command(message->text, &args))
+		return CBOTE_INPUT;
 
 	FLOG(LOG_INFO, "Executing \"%s\" plugin...", args.command);
 	PluginHandler plugin = select_plugin(&args);
 	if (NULL == plugin)
 	{
 		LOG(LOG_ERROR, "Plugin not found!");
-		error = PSE_NO_PLUGIN;
+		error = CBOTE_WRONG_PLUGIN;
 		goto end;
 	}
 	
-	if (PE_OK != plugin(&args))
+	if (CBOTE_OK != plugin(&args))
 	{
 		LOG(LOG_ERROR, "Plugin failed!");
-		error = PSE_PLUGIN_FAILED;
+		error = CBOTE_PLUGIN_FAILED;
 		goto end;
 	}
 
@@ -44,21 +45,21 @@ end:
 
 LOCAL void plugin_free_args(PluginArgs* args)
 {
-	free(args->command);
+	free((char*)args->command);
 }
 
 LOCAL int parse_command(const char* text, PluginArgs* args)
 {
-	int error = PSE_OK;
+	int error = CBOTE_OK;
 
 	char* pos = strchr(text, '/') + 1;
 	if (NULL == pos - 1 || *pos == '\0')
-		return PSE_INPUT;
+		return CBOTE_INPUT;
 
 	size_t size = strlen(pos) + 1;
 	char* tokens = (char*)malloc(size);
 	if (NULL == tokens)
-		return PSE_MEM;
+		return CBOTE_NOMEM;
 	memcpy(tokens, pos, size);
 
 	args->command = strtok(tokens, " ");

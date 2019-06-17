@@ -1,9 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <time.h>
 
-#include "defines.h"
 #include "core.h"
+#include "utility.h"
 #include "requests.h"
 #include "longpoll.h"
 #include "plugin_selector.h"
@@ -12,14 +13,14 @@ LOCAL int start_main_loop();
 
 int bot_start()
 {
-	int error = COREE_OK;
+	int error = CBOTE_OK;
 
 	srand(time(NULL));
-	if (RE_OK != requests_init() ||
-		LPE_OK != longpoll_init())
+	if (CBOTE_OK != requests_init() ||
+		CBOTE_OK != longpoll_init())
 	{
 		LOG(LOG_ERROR, "Bot initialisation failed");
-		error = COREE_INIT_FAILED;
+		error = CBOTE_CORE_INIT_FAILED;
 		goto end;
 	}
 
@@ -35,7 +36,7 @@ end:
 
 LOCAL int start_main_loop()
 {
-	int error = COREE_OK;
+	int error = CBOTE_OK;
 
 	while (true)
 	{
@@ -44,8 +45,8 @@ LOCAL int start_main_loop()
 		char* buffer = NULL;
 		
 		error = longpoll_getmessages(&msg, &count, &buffer);
-		if (LPE_OK != error)
-			if (LPE_NET == error)
+		if (CBOTE_OK != error)
+			if (CBOTE_NET == error)
 				continue;
 			else goto enditer;
 

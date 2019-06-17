@@ -9,13 +9,6 @@
 									  method "?" params "&access_token="\
 									  ACCESS_TOKEN "&v=" VKAPI_VERSION
 
-enum ResponseError
-{
-	RE_OK = 0,
-	RE_CURLE = 1,
-	RE_NOMEM = 2
-};
-
 typedef struct _Response
 {
 	char* data;

@@ -1,7 +1,7 @@
 #include <curl/curl.h>
 
-#include "defines.h"
 #include "requests.h"
+#include "utility.h"
 
 LOCAL CURL* curl;
 
@@ -9,14 +9,14 @@ LOCAL size_t write(void* contents, size_t size, size_t nmemb, void* userp);
 
 int requests_init()
 {
-	int error = RE_OK;
+	int error = CBOTE_OK;
 
 	if (CURLE_OK != curl_global_init(CURL_GLOBAL_ALL))
-		return RE_CURLE;
+		return CBOTE_CURL_INIT_FAILED;
 
 	curl = curl_easy_init();
 	if (NULL == curl)
-		return RE_CURLE;
+		return CBOTE_CURL_INIT_FAILED;
 
 	error |= curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write);
 	/* some servers don't like requests that are made without a user-agent
@@ -25,9 +25,9 @@ int requests_init()
 	error |= curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
 	error |= curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
 	if (error)
-		return RE_CURLE;
+		return CBOTE_CURL_INIT_FAILED;
 
-	return RE_OK;
+	return CBOTE_OK;
 }
 
 void requests_free()
@@ -69,7 +69,7 @@ char* escape_url(const char* text, int length)
 
 void free_escaped_url(const char* url)
 {
-	curl_free(url);
+	curl_free((char*)url);
 }
 
 LOCAL size_t write(void* contents, size_t size, size_t nmemb, void* userp)
